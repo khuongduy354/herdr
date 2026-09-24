@@ -108,6 +108,7 @@ pub struct SidebarTokenStyle {
 pub enum AgentSidebarToken {
     StateIcon,
     StateText,
+    AgentIndex,
     Machine,
     Workspace,
     Tab,
@@ -272,6 +273,7 @@ fn agent_token_name(token: &AgentSidebarToken) -> String {
     match token {
         AgentSidebarToken::StateIcon => "state_icon".into(),
         AgentSidebarToken::StateText => "state_text".into(),
+        AgentSidebarToken::AgentIndex => "agent_index".into(),
         AgentSidebarToken::Machine => "machine".into(),
         AgentSidebarToken::Workspace => "workspace".into(),
         AgentSidebarToken::Tab => "tab".into(),
@@ -331,6 +333,7 @@ impl<'de> Deserialize<'de> for AgentSidebarToken {
             &[
                 ("state_icon", Self::StateIcon),
                 ("state_text", Self::StateText),
+                ("agent_index", Self::AgentIndex),
                 ("machine", Self::Machine),
                 ("workspace", Self::Workspace),
                 ("tab", Self::Tab),
@@ -563,6 +566,21 @@ row_gap = 3
             vec![SpaceSidebarToken::Custom("jj_status".into())]
         );
         assert_eq!(config.ui.sidebar.spaces.row_gap, 3);
+    }
+
+    #[test]
+    fn agent_index_round_trips_as_builtin_and_styled_token() {
+        let config: AgentsSidebarConfig =
+            toml::from_str("rows = [[\"agent_index\", { token = \"agent_index\", bold = true }]]")
+                .expect("agent index config");
+        assert_eq!(config.rows[0][0], AgentSidebarToken::AgentIndex);
+        assert!(matches!(
+            config.rows[0][1],
+            AgentSidebarToken::Styled { .. }
+        ));
+        let serialized = toml::to_string(&config).expect("serialize agent index");
+        let restored: AgentsSidebarConfig = toml::from_str(&serialized).expect("restore config");
+        assert_eq!(restored, config);
     }
 
     #[test]
