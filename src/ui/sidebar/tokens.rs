@@ -190,8 +190,10 @@ pub(crate) fn space_rows(
 }
 
 pub(crate) fn separator(previous: &ResolvedToken, current: &ResolvedToken) -> &'static str {
-    if matches!(previous.kind, ResolvedTokenKind::StateIcon)
-        || matches!(current.kind, ResolvedTokenKind::GitStatus { .. })
+    if matches!(
+        previous.kind,
+        ResolvedTokenKind::StateIcon | ResolvedTokenKind::AgentIndex(_)
+    ) || matches!(current.kind, ResolvedTokenKind::GitStatus { .. })
     {
         " "
     } else {
@@ -203,6 +205,13 @@ pub(crate) fn separator(previous: &ResolvedToken, current: &ResolvedToken) -> &'
 mod tests {
     use super::*;
     use crate::config::{AgentSidebarToken, SpaceSidebarToken};
+
+    #[test]
+    fn agent_index_has_no_dot_separator() {
+        let index = ResolvedToken::unstyled(ResolvedTokenKind::AgentIndex("1".into()));
+        let icon = ResolvedToken::unstyled(ResolvedTokenKind::StateIcon);
+        assert_eq!(separator(&index, &icon), " ");
+    }
 
     struct Entry {
         workspace: String,

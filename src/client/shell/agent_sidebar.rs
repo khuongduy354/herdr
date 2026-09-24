@@ -12,9 +12,16 @@ use super::*;
 
 pub(super) struct AgentRow {
     pub(super) pane_id: String,
+    pub(super) workspace_id: String,
+    pub(super) workspace_label: String,
     pub(super) status: crate::api::schema::AgentStatus,
     pub(super) focused: bool,
     pub(super) rows: Vec<Vec<crate::ui::ResolvedToken>>,
+}
+
+enum AgentPanelRow {
+    Workspace(String),
+    Agent(AgentRow),
 }
 
 pub(super) fn ordered_agent_pane_ids(
@@ -67,7 +74,17 @@ pub(super) fn render_agent_panel(
         return;
     }
 
-    let rows = agent_rows(snapshot, config, None);
+    let grouped = config.agent_panel_sort == crate::config::AgentPanelSortConfig::Spaces
+        && snapshot.agent_view_label.is_none();
+    let mut rows = Vec::new();
+    let mut last_workspace = None;
+    for row in agent_rows(snapshot, config, None) {
+        if grouped && last_workspace.as_deref() != Some(row.workspace_id.as_str()) {
+            rows.push(AgentPanelRow::Workspace(row.workspace_label.clone()));
+        }
+        last_workspace = Some(row.workspace_id.clone());
+        rows.push(AgentPanelRow::Agent(row));
+    }
     render_agent_list(
         buffer,
         area,
@@ -79,10 +96,25 @@ pub(super) fn render_agent_panel(
         config,
         agent_scroll,
         hits,
-        |row| row.rows.len(),
-        |buffer, rect, row, hits| {
-            hits.agents.push((rect, row.pane_id.clone()));
-            render_agent_row(buffer, rect, row, config);
+        |row| match row {
+            AgentPanelRow::Workspace(_) => 1,
+            AgentPanelRow::Agent(row) => row.rows.len(),
+        },
+        |buffer, rect, row, hits| match row {
+            AgentPanelRow::Workspace(label) => put_text(
+                buffer,
+                rect.x.saturating_add(1),
+                rect.y,
+                rect.width.saturating_sub(1),
+                label,
+                Style::default()
+                    .fg(config.palette.overlay0)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            AgentPanelRow::Agent(row) => {
+                hits.agents.push((rect, row.pane_id.clone()));
+                render_agent_row(buffer, rect, row, config, usize::from(grouped) * 2);
+            }
         },
     );
 }
@@ -318,6 +350,8 @@ pub(super) fn agent_row(
     );
     Some(AgentRow {
         pane_id: agent.pane_id.clone(),
+        workspace_id: workspace.workspace_id.clone(),
+        workspace_label: workspace.label.clone(),
         status: agent.agent_status,
         focused: agent.focused,
         rows,
@@ -329,6 +363,7 @@ pub(super) fn render_agent_row(
     rect: Rect,
     row: &AgentRow,
     config: &ClientShellConfig,
+    extra_indent: usize,
 ) {
     let palette = &config.palette;
     let row_style = if row.focused {
@@ -360,7 +395,7 @@ pub(super) fn render_agent_row(
         row.rows.clone()
     };
     for (index, tokens) in rows.iter().take(rect.height as usize).enumerate() {
-        let indent = if index == 0 { 1 } else { 3 };
+        let indent = if index == 0 { 1 } else { 3 } + extra_indent;
         let mut spans = vec![ratatui::text::Span::raw(" ".repeat(indent))];
         spans.extend(crate::ui::resolved_token_spans(
             tokens,
