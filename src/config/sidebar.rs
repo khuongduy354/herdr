@@ -109,6 +109,7 @@ pub enum AgentSidebarToken {
     StateIcon,
     StateText,
     AgentIndex,
+    AgentName,
     Machine,
     Workspace,
     Tab,
@@ -274,6 +275,7 @@ fn agent_token_name(token: &AgentSidebarToken) -> String {
         AgentSidebarToken::StateIcon => "state_icon".into(),
         AgentSidebarToken::StateText => "state_text".into(),
         AgentSidebarToken::AgentIndex => "agent_index".into(),
+        AgentSidebarToken::AgentName => "agent_name".into(),
         AgentSidebarToken::Machine => "machine".into(),
         AgentSidebarToken::Workspace => "workspace".into(),
         AgentSidebarToken::Tab => "tab".into(),
@@ -334,6 +336,7 @@ impl<'de> Deserialize<'de> for AgentSidebarToken {
                 ("state_icon", Self::StateIcon),
                 ("state_text", Self::StateText),
                 ("agent_index", Self::AgentIndex),
+                ("agent_name", Self::AgentName),
                 ("machine", Self::Machine),
                 ("workspace", Self::Workspace),
                 ("tab", Self::Tab),
@@ -445,12 +448,15 @@ impl Default for AgentsSidebarConfig {
         Self {
             rows: vec![
                 vec![
+                    AgentSidebarToken::AgentIndex,
                     AgentSidebarToken::StateIcon,
-                    AgentSidebarToken::Machine,
-                    AgentSidebarToken::Workspace,
-                    AgentSidebarToken::Tab,
+                    AgentSidebarToken::AgentName,
                 ],
-                vec![AgentSidebarToken::Agent],
+                vec![
+                    AgentSidebarToken::Machine,
+                    AgentSidebarToken::Tab,
+                    AgentSidebarToken::Agent,
+                ],
             ],
             rows_by_agent: BTreeMap::new(),
             row_gap: DEFAULT_SIDEBAR_ROW_GAP,
@@ -496,12 +502,15 @@ mod tests {
             config.agents.rows,
             vec![
                 vec![
+                    AgentSidebarToken::AgentIndex,
                     AgentSidebarToken::StateIcon,
-                    AgentSidebarToken::Machine,
-                    AgentSidebarToken::Workspace,
-                    AgentSidebarToken::Tab,
+                    AgentSidebarToken::AgentName,
                 ],
-                vec![AgentSidebarToken::Agent],
+                vec![
+                    AgentSidebarToken::Machine,
+                    AgentSidebarToken::Tab,
+                    AgentSidebarToken::Agent,
+                ],
             ]
         );
         assert!(config.agents.rows_by_agent.is_empty());
@@ -579,6 +588,16 @@ row_gap = 3
             AgentSidebarToken::Styled { .. }
         ));
         let serialized = toml::to_string(&config).expect("serialize agent index");
+        let restored: AgentsSidebarConfig = toml::from_str(&serialized).expect("restore config");
+        assert_eq!(restored, config);
+    }
+
+    #[test]
+    fn agent_name_round_trips_as_builtin_token() {
+        let config: AgentsSidebarConfig =
+            toml::from_str("rows = [[\"agent_name\"]]").expect("agent name config");
+        assert_eq!(config.rows[0][0], AgentSidebarToken::AgentName);
+        let serialized = toml::to_string(&config).expect("serialize agent name");
         let restored: AgentsSidebarConfig = toml::from_str(&serialized).expect("restore config");
         assert_eq!(restored, config);
     }

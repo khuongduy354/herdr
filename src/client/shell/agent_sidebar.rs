@@ -300,6 +300,7 @@ pub(super) fn agent_row(
         &config.agents,
         crate::ui::AgentTokenContext {
             agent_index,
+            agent_name: agent.name.as_deref().or(agent_label),
             machine,
             workspace: &workspace.label,
             tab: tab_label,

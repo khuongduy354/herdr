@@ -1,6 +1,58 @@
 use super::*;
 
 #[test]
+fn default_agent_row_promotes_herdr_name_without_showing_space() {
+    use crate::ui::ResolvedTokenKind;
+
+    let mut projected = snapshot();
+    projected.agents.push(ClientShellAgent {
+        pane_id: "pane_1".into(),
+        workspace_id: "ws_1".into(),
+        tab_id: "tab_1".into(),
+        name: Some("operator".into()),
+        display_agent: Some("Codex".into()),
+        agent: Some("codex".into()),
+        title: None,
+        terminal_title: None,
+        terminal_title_stripped: None,
+        agent_status: AgentStatus::Idle,
+        state_change_seq: 1,
+        state_labels: Vec::new(),
+        tokens: Vec::new(),
+        focused: true,
+    });
+    let config = ClientShellConfig::from_config(&Config::default());
+    let row = super::agent_sidebar::agent_row(&projected, "pane_1", &config, None, Some(1))
+        .expect("agent row");
+
+    assert_eq!(
+        row.rows[0][0].kind,
+        ResolvedTokenKind::AgentIndex("1".into())
+    );
+    assert_eq!(
+        row.rows[0][2].kind,
+        ResolvedTokenKind::AgentName("operator".into())
+    );
+    assert_eq!(
+        row.rows[1][0].kind,
+        ResolvedTokenKind::Agent("Codex".into())
+    );
+    assert!(row
+        .rows
+        .iter()
+        .flatten()
+        .all(|token| !matches!(&token.kind, ResolvedTokenKind::Workspace(_))));
+
+    projected.agents[0].name = None;
+    let unnamed = super::agent_sidebar::agent_row(&projected, "pane_1", &config, None, Some(1))
+        .expect("unnamed agent row");
+    assert_eq!(
+        unnamed.rows[0][2].kind,
+        ResolvedTokenKind::AgentName("Codex".into())
+    );
+}
+
+#[test]
 fn agent_index_matches_focus_agent_in_spaces_and_priority_order() {
     use crate::config::{AgentPanelSortConfig, AgentSidebarToken};
     use crate::ui::ResolvedTokenKind;

@@ -14,6 +14,7 @@ pub(crate) enum ResolvedTokenKind {
     StateIcon,
     StateText(String),
     AgentIndex(String),
+    AgentName(String),
     Machine(String),
     Workspace(String),
     Tab(String),
@@ -30,6 +31,7 @@ impl ResolvedTokenKind {
         match self {
             Self::StateText(value)
             | Self::AgentIndex(value)
+            | Self::AgentName(value)
             | Self::Machine(value)
             | Self::Workspace(value)
             | Self::Tab(value)
@@ -56,6 +58,7 @@ impl ResolvedToken {
 
 pub(crate) struct AgentTokenContext<'a> {
     pub(crate) agent_index: Option<usize>,
+    pub(crate) agent_name: Option<&'a str>,
     pub(crate) machine: Option<&'a str>,
     pub(crate) workspace: &'a str,
     pub(crate) tab: Option<&'a str>,
@@ -88,6 +91,9 @@ pub(crate) fn agent_rows(
                         AgentSidebarToken::AgentIndex => context
                             .agent_index
                             .map(|index| ResolvedTokenKind::AgentIndex(index.to_string())),
+                        AgentSidebarToken::AgentName => context
+                            .agent_name
+                            .map(|value| ResolvedTokenKind::AgentName(value.to_string())),
                         AgentSidebarToken::Machine => context
                             .machine
                             .map(|value| ResolvedTokenKind::Machine(value.to_string())),
@@ -203,6 +209,7 @@ mod tests {
         tab: Option<String>,
         pane: Option<String>,
         agent_label: Option<String>,
+        agent_name: Option<String>,
         terminal_title: Option<String>,
         terminal_title_stripped: Option<String>,
         canonical_agent: Option<crate::detect::Agent>,
@@ -215,6 +222,7 @@ mod tests {
             tab: None,
             pane: None,
             agent_label: Some("pi".into()),
+            agent_name: Some("researcher".into()),
             terminal_title: None,
             terminal_title_stripped: None,
             canonical_agent: Some(crate::detect::Agent::Pi),
@@ -225,6 +233,7 @@ mod tests {
     fn context(entry: &Entry) -> AgentTokenContext<'_> {
         AgentTokenContext {
             agent_index: Some(1),
+            agent_name: entry.agent_name.as_deref(),
             machine: None,
             workspace: &entry.workspace,
             tab: entry.tab.as_deref(),

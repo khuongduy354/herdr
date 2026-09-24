@@ -356,8 +356,8 @@ The expanded desktop sidebar renders each inner array in `rows` as one line. The
 [ui.sidebar.agents]
 row_gap = 0
 rows = [
-  ["state_icon", "machine", "workspace", "tab"],
-  ["agent"],
+  ["agent_index", "state_icon", "agent_name"],
+  ["machine", "tab", "agent"],
 ]
 
 [ui.sidebar.spaces]
@@ -373,6 +373,7 @@ Agent rows accept these built-in tokens:
 - `state_icon` — colored icon for the agent's semantic state.
 - `state_text` — `idle`, `working`, `blocked`, `done`, or `unknown`, including a reported display label when present.
 - `agent_index` — the agent's 1-based position in the visible Agent list, using the same order as `focus_agent` in both `spaces` and `priority` modes. Offline machine rows have no index because `focus_agent` skips them.
+- `agent_name` — the Herdr agent name, falling back to the detected or reported agent display name. The default layout shows it in bold.
 - `machine` — machine label when the client has multiple machines; omitted for a single local machine.
 - `workspace` — workspace name.
 - `tab` — tab name when available.
@@ -382,14 +383,14 @@ Agent rows accept these built-in tokens:
 - `terminal_title_stripped` — the terminal title with one recognized leading activity or spinner glyph and its following whitespace removed.
 - `$name` — custom pane metadata named `name`.
 
-For numbered Agent rows, add `agent_index` to the layout and bind `focus_agent`:
+The default Agent layout shows the focus index. Bind `focus_agent` to jump to numbered rows:
 
 ```toml
 [keys]
 focus_agent = "prefix+alt+1..9"
 
 [ui.sidebar.agents]
-rows = [["agent_index", "state_icon", "workspace", "tab"], ["agent"]]
+rows = [["agent_index", "state_icon", "agent_name"], ["machine", "tab", "agent"]]
 ```
 
 The number updates when Agent ordering changes. `focus_agent` supports positions 1–9; the token also displays positions above 9.
