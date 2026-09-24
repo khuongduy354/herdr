@@ -241,7 +241,10 @@ pub(super) fn agent_rows(
 ) -> Vec<AgentRow> {
     ordered_agent_pane_ids(snapshot, config.agent_panel_sort)
         .into_iter()
-        .filter_map(|pane_id| agent_row(snapshot, &pane_id, config, machine))
+        .enumerate()
+        .filter_map(|(index, pane_id)| {
+            agent_row(snapshot, &pane_id, config, machine, Some(index + 1))
+        })
         .collect()
 }
 
@@ -250,6 +253,7 @@ pub(super) fn agent_row(
     pane_id: &str,
     config: &ClientShellConfig,
     machine: Option<&str>,
+    agent_index: Option<usize>,
 ) -> Option<AgentRow> {
     let agent = snapshot
         .agents
@@ -295,6 +299,7 @@ pub(super) fn agent_row(
     let rows = crate::ui::sidebar_agent_rows(
         &config.agents,
         crate::ui::AgentTokenContext {
+            agent_index,
             machine,
             workspace: &workspace.label,
             tab: tab_label,

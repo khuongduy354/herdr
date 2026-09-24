@@ -1,6 +1,67 @@
 use super::*;
 
 #[test]
+fn agent_index_matches_focus_agent_in_spaces_and_priority_order() {
+    use crate::config::{AgentPanelSortConfig, AgentSidebarToken};
+    use crate::ui::ResolvedTokenKind;
+
+    let mut projected = snapshot();
+    let first = ClientShellAgent {
+        pane_id: "pane_1".into(),
+        workspace_id: "ws_1".into(),
+        tab_id: "tab_1".into(),
+        name: Some("first".into()),
+        display_agent: None,
+        agent: Some("pi".into()),
+        title: None,
+        terminal_title: None,
+        terminal_title_stripped: None,
+        agent_status: AgentStatus::Idle,
+        state_change_seq: 1,
+        state_labels: Vec::new(),
+        tokens: Vec::new(),
+        focused: true,
+    };
+    let mut second = first.clone();
+    second.pane_id = "pane_2".into();
+    second.name = Some("second".into());
+    second.agent_status = AgentStatus::Blocked;
+    second.state_change_seq = 2;
+    projected.agents = vec![first, second];
+
+    for (sort, expected) in [
+        (AgentPanelSortConfig::Spaces, ["pane_1", "pane_2"]),
+        (AgentPanelSortConfig::Priority, ["pane_2", "pane_1"]),
+    ] {
+        let mut config = Config::default();
+        config.ui.agent_panel_sort = sort;
+        config.ui.sidebar.agents.rows = vec![vec![AgentSidebarToken::AgentIndex]];
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+        state.set_snapshot(Box::new(projected.clone()));
+        let rows = super::agent_sidebar::agent_rows(
+            state.snapshot.as_deref().expect("snapshot"),
+            &state.config,
+            None,
+        );
+        let targets = super::aggregate_navigation::online_agent_targets(
+            &state.endpoints,
+            &state.active_endpoint_id,
+            sort,
+        );
+        for (position, (row, target)) in rows.iter().zip(&targets).enumerate() {
+            assert_eq!(row.pane_id, expected[position]);
+            assert_eq!(target.pane_id, row.pane_id);
+            assert_eq!(
+                row.rows[0][0].kind,
+                ResolvedTokenKind::AgentIndex((position + 1).to_string())
+            );
+        }
+        assert_eq!(rows.len(), 2);
+        assert_eq!(targets.len(), 2);
+    }
+}
+
+#[test]
 fn mouse_hits_use_stable_workspace_tab_and_pane_ids() {
     let config = ClientShellConfig::from_config(&Config::default());
     let mut state = ClientShellState::new(config);

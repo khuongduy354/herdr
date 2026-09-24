@@ -1302,8 +1302,11 @@ fn aggregate_priority_uses_client_observed_recency_across_machines() {
 
     let mut config = Config::default();
     config.ui.agent_panel_sort = crate::config::AgentPanelSortConfig::Priority;
-    config.ui.sidebar.agents.rows =
-        vec![vec![AgentSidebarToken::Machine, AgentSidebarToken::Agent]];
+    config.ui.sidebar.agents.rows = vec![vec![
+        AgentSidebarToken::AgentIndex,
+        AgentSidebarToken::Machine,
+        AgentSidebarToken::Agent,
+    ]];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     let profile = remote_profile();
     let endpoint_id = ClientEndpointId::Ssh(profile.id.clone());
@@ -1336,6 +1339,8 @@ fn aggregate_priority_uses_client_observed_recency_across_machines() {
             .join("\n")
     };
     let text = frame_text(&mut state);
+    assert!(text.contains("1 · Local · local agent"), "frame: {text}");
+    assert!(text.contains("2 · Build · remote agent"), "frame: {text}");
     assert!(
         text.find("Local · local agent").expect("local agent")
             < text.find("Build · remote agent").expect("remote agent")
@@ -1344,6 +1349,8 @@ fn aggregate_priority_uses_client_observed_recency_across_machines() {
     remote.agents = vec![agent("remote agent", AgentStatus::Working, 2)];
     state.set_endpoint_snapshot(&endpoint_id, Box::new(remote.clone()));
     let text = frame_text(&mut state);
+    assert!(text.contains("1 · Build · remote agent"), "frame: {text}");
+    assert!(text.contains("2 · Local · local agent"), "frame: {text}");
     assert!(
         text.find("Build · remote agent").expect("remote agent")
             < text.find("Local · local agent").expect("local agent")
@@ -2262,8 +2269,14 @@ fn cached_offline_navigator_and_mobile_targets_are_dimmed_and_disabled() {
 #[test]
 fn focus_agent_index_uses_online_aggregate_rows() {
     use crate::api::schema::AgentStatus;
+    use crate::config::AgentSidebarToken;
 
     let (mut state, endpoint_id) = state_with_remote();
+    state.config.agents.rows = vec![vec![
+        AgentSidebarToken::AgentIndex,
+        AgentSidebarToken::Machine,
+        AgentSidebarToken::Agent,
+    ]];
     state
         .endpoints
         .iter_mut()
@@ -2278,9 +2291,24 @@ fn focus_agent_index_uses_online_aggregate_rows() {
 
     assert!(state.indexed_navigation_target_exists(&focus_agent(0)));
     assert!(!state.indexed_navigation_target_exists(&focus_agent(1)));
+    let online_frame = state.compose(100, 28).expect("online agent sidebar");
+    let online_text = online_frame
+        .cells
+        .iter()
+        .map(|cell| cell.symbol.as_str())
+        .collect::<String>();
+    assert!(online_text.contains("1 · Build · remote agent"));
 
     state.set_endpoint_status(&endpoint_id, ClientEndpointStatus::Reconnecting);
     assert!(!state.indexed_navigation_target_exists(&focus_agent(0)));
+    let stale_frame = state.compose(100, 28).expect("stale agent sidebar");
+    let stale_text = stale_frame
+        .cells
+        .iter()
+        .map(|cell| cell.symbol.as_str())
+        .collect::<String>();
+    assert!(stale_text.contains("Build · remote agent"));
+    assert!(!stale_text.contains("1 · Build · remote agent"));
 }
 
 #[test]

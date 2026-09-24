@@ -13,6 +13,7 @@ pub(crate) struct ResolvedToken {
 pub(crate) enum ResolvedTokenKind {
     StateIcon,
     StateText(String),
+    AgentIndex(String),
     Machine(String),
     Workspace(String),
     Tab(String),
@@ -28,6 +29,7 @@ impl ResolvedTokenKind {
     fn text_value(&self) -> Option<&str> {
         match self {
             Self::StateText(value)
+            | Self::AgentIndex(value)
             | Self::Machine(value)
             | Self::Workspace(value)
             | Self::Tab(value)
@@ -53,6 +55,7 @@ impl ResolvedToken {
 }
 
 pub(crate) struct AgentTokenContext<'a> {
+    pub(crate) agent_index: Option<usize>,
     pub(crate) machine: Option<&'a str>,
     pub(crate) workspace: &'a str,
     pub(crate) tab: Option<&'a str>,
@@ -82,6 +85,9 @@ pub(crate) fn agent_rows(
                         AgentSidebarToken::StateText => {
                             Some(ResolvedTokenKind::StateText(state_text.to_string()))
                         }
+                        AgentSidebarToken::AgentIndex => context
+                            .agent_index
+                            .map(|index| ResolvedTokenKind::AgentIndex(index.to_string())),
                         AgentSidebarToken::Machine => context
                             .machine
                             .map(|value| ResolvedTokenKind::Machine(value.to_string())),
@@ -218,6 +224,7 @@ mod tests {
 
     fn context(entry: &Entry) -> AgentTokenContext<'_> {
         AgentTokenContext {
+            agent_index: Some(1),
             machine: None,
             workspace: &entry.workspace,
             tab: entry.tab.as_deref(),
@@ -228,6 +235,24 @@ mod tests {
             canonical_agent: entry.canonical_agent,
             tokens: &entry.tokens,
         }
+    }
+
+    #[test]
+    fn agent_index_resolves_as_text_and_disappears_without_focus_target() {
+        let config: AgentsSidebarConfig = toml::from_str(
+            "rows = [[{ token = \"agent_index\", rules = [{ equals = \"12\", bold = true }] }]]",
+        )
+        .expect("agent index config");
+        let entry = entry();
+        let mut indexed_context = context(&entry);
+        indexed_context.agent_index = Some(12);
+        let rows = agent_rows(&config, indexed_context, "working");
+        assert_eq!(rows[0][0].kind, ResolvedTokenKind::AgentIndex("12".into()));
+        assert_eq!(rows[0][0].style.bold, Some(true));
+
+        let mut unindexed_context = context(&entry);
+        unindexed_context.agent_index = None;
+        assert!(agent_rows(&config, unindexed_context, "working").is_empty());
     }
 
     #[test]
