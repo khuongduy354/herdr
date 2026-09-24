@@ -33,10 +33,7 @@ fn default_agent_row_promotes_herdr_name_without_showing_space() {
         row.rows[0][2].kind,
         ResolvedTokenKind::AgentName("operator".into())
     );
-    assert_eq!(
-        row.rows[1][0].kind,
-        ResolvedTokenKind::Agent("Codex".into())
-    );
+    assert_eq!(row.rows.len(), 1);
     assert!(row
         .rows
         .iter()

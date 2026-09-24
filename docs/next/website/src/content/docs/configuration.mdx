@@ -357,7 +357,6 @@ The expanded desktop sidebar renders each inner array in `rows` as one line. The
 row_gap = 0
 rows = [
   ["agent_index", "state_icon", "agent_name"],
-  ["machine", "tab", "agent"],
 ]
 
 [ui.sidebar.spaces]
@@ -390,7 +389,7 @@ The default Agent layout shows the focus index. Bind `focus_agent` to jump to nu
 focus_agent = "prefix+alt+1..9"
 
 [ui.sidebar.agents]
-rows = [["agent_index", "state_icon", "agent_name"], ["machine", "tab", "agent"]]
+rows = [["agent_index", "state_icon", "agent_name"]]
 ```
 
 The number updates when Agent ordering changes. `focus_agent` supports positions 1–9; the token also displays positions above 9.
