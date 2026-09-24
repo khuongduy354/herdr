@@ -136,10 +136,12 @@ herdr agent start reviewer --kind codex --pane <returned-pane-id> -- <agent-args
 
 A successful `agent start` returns only after Herdr detects the expected agent in the same pane and considers it ready for interactive input. If the agent is blocked during startup, the command returns `agent_not_ready` immediately but keeps the name available for `agent read` and `agent send-keys`. Wait until the agent becomes idle before prompting it. Startup defaults to a 30-second timeout.
 
+In the first prompt to every agent you start, tell it to read the Herdr skill before using Herdr. If the skill is not already available in its context, tell it to run `herdr --skill`.
+
 Submit work through the agent surface:
 
 ```bash
-herdr agent prompt reviewer "Review the current diff and report only actionable findings." --wait --timeout 120000
+herdr agent prompt reviewer "Read the Herdr skill first (run herdr --skill if needed). Review the current diff and report only actionable findings." --wait --timeout 120000
 ```
 
 `agent prompt` honors the pane's live bracketed-paste mode and sends text followed by encoded Enter as one ordered submission. It reports successful submission only after both have been written; that alone does not prove the agent started a turn. For Codex on Windows, Herdr sends a paste boundary before Enter so submission does not depend on prompt size. It rejects an agent already waiting at an approval or question dialog with `agent_blocked` before sending any input. Inspect the blocked UI and ask the user before answering it. For normal agent work, `--wait` is enough: it waits for the first settled `idle`, `done`, or `blocked` state. Do not repeat those defaults with `--until`.
