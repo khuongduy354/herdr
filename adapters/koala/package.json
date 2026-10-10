@@ -1,0 +1,9 @@
+{
+  "name": "duys-koala-herd-adapter",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test *.test.mjs" },
+  "dependencies": { "ws": "8.19.0" }
+}
