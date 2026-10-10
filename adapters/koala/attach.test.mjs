@@ -45,3 +45,21 @@ test('focuses matching attachment and creates argv-based tab only when absent', 
   assert.deepEqual(calls.at(-1), ['pane.focus', { pane_id: 'p2' }]);
   await assert.rejects(openTask({ ...task, stale: true }, 'https://koala.example', 'w1', request));
 });
+
+test('retries reuse a partially registered pane when rollback is unavailable', async () => {
+  const task = { id: 'partial', key: 'server#partial', title: 'task', activity: 'waiting' };
+  let panes = [], created = 0, fail = true;
+  const request = async (method, params) => {
+    if (method === 'pane.list') return { panes };
+    if (method === 'layout.apply') {
+      created++; panes = [{ pane_id: 'owned-partial' }];
+      return { layout: { focused_pane_id: 'owned-partial' } };
+    }
+    if (fail && ['pane.report_metadata', 'pane.close'].includes(method)) throw new Error('offline');
+    return { focused: params.pane_id };
+  };
+  await assert.rejects(openTask(task, 'https://koala.example', 'w1', request), /offline/);
+  fail = false;
+  assert.deepEqual(await openTask(task, 'https://koala.example', 'w1', request), { focused: 'owned-partial' });
+  assert.equal(created, 1);
+});

@@ -29,11 +29,23 @@ export function herdrRequest(method, params, socketPath = process.env.HERDR_KOAL
   });
 }
 
+// Preserve ownership if registration and rollback both fail; retries must not duplicate.
+const pendingAttachments = new Map();
+
 export async function openTask(task, server, workspaceId, request = herdrRequest, authSocket) {
   if (task.stale || task.activity === 'stopped') throw new Error('task is stale or stopped. refresh before opening.');
   const { panes } = await request('pane.list', {});
-  const existing = panes.find(pane => pane.tokens?.koala_task === task.key);
-  if (existing) return request('pane.focus', { pane_id: existing.pane_id });
+  const existing = panes.find(pane => pane.tokens?.koala_task === task.key
+    || pane.pane_id === pendingAttachments.get(task.key));
+  if (existing) {
+    if (pendingAttachments.has(task.key)) {
+      await request('pane.report_metadata', { pane_id: existing.pane_id,
+        source: 'koala-herd', tokens: { koala_task: task.key }, title: task.title });
+      pendingAttachments.delete(task.key);
+    }
+    return request('pane.focus', { pane_id: existing.pane_id });
+  }
+  pendingAttachments.delete(task.key);
   const result = await request('layout.apply', {
     ...(workspaceId ? { workspace_id: workspaceId } : {}),
     tab_label: task.title, focus: true,
@@ -43,8 +55,18 @@ export async function openTask(task, server, workspaceId, request = herdrRequest
         ...(authSocket ? { HERDR_KOALA_AUTH_SOCKET: authSocket } : {}),
         ...(process.env.KOALA_DIR ? { KOALA_DIR: process.env.KOALA_DIR } : {}) } },
   });
-  await request('pane.report_metadata', { pane_id: result.layout.focused_pane_id,
-    source: 'koala-herd', tokens: { koala_task: task.key }, title: task.title });
+  const paneId = result.layout.focused_pane_id;
+  pendingAttachments.set(task.key, paneId);
+  try {
+    await request('pane.report_metadata', { pane_id: paneId,
+      source: 'koala-herd', tokens: { koala_task: task.key }, title: task.title });
+    pendingAttachments.delete(task.key);
+  } catch (error) {
+    // This only closes the local attachment created above, never the Koala task.
+    await request('pane.close', { pane_id: paneId })
+      .then(() => pendingAttachments.delete(task.key)).catch(() => {});
+    throw error;
+  }
   // layout.apply changes runtime focus; pane.focus also updates attached clients.
   await request('pane.focus', { pane_id: result.layout.focused_pane_id });
   return result;
