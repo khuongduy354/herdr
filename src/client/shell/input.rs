@@ -129,6 +129,13 @@ impl ClientShellState {
     }
 
     fn prepare_committed_text(&mut self, text: &str, outcome: &mut ClientShellInput) -> bool {
+        if self.overlay.is_none()
+            && self.popup_input_target().is_none()
+            && !self.popup_pending
+            && self.koala_text(text, outcome)
+        {
+            return true;
+        }
         if !(self.mode == ClientShellMode::Navigate && self.workspace_preview_action_blocked())
             && self.insert_copy_search_text(text)
         {
@@ -532,6 +539,9 @@ impl ClientShellState {
             self.route_overlay_key(key, outcome);
             return None;
         }
+        if self.koala_key(key, outcome) {
+            return None;
+        }
         if matches!(key.code, KeyCode::Modifier(_)) {
             return None;
         }
@@ -878,6 +888,9 @@ impl ClientShellState {
                 })
                 .is_some(),
             KeybindMatch::Action(KeybindAction::FocusAgent(index)) => {
+                if self.koala.is_some() {
+                    return self.koala_index(*index).is_some();
+                }
                 super::aggregate_navigation::online_agent_targets(
                     &self.endpoints,
                     &self.active_endpoint_id,

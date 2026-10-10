@@ -6,6 +6,16 @@ impl ClientShellState {
         binding: crate::input::KeybindMatch,
         outcome: &mut ClientShellInput,
     ) {
+        if let crate::input::KeybindMatch::Action(crate::input::KeybindAction::FocusAgent(index)) =
+            binding
+        {
+            if self.koala.is_some() {
+                if let Some(id) = self.koala_index(index) {
+                    self.open_koala(id, outcome);
+                }
+                return;
+            }
+        }
         match binding {
             crate::input::KeybindMatch::Action(crate::input::KeybindAction::Detach) => {
                 outcome.detach = true;

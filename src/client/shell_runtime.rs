@@ -7,11 +7,23 @@ pub(super) fn dispatch_client_shell_actions(
     mut shell: Option<&mut shell::ClientShellState>,
     detached_process_children: &mut Vec<std::process::Child>,
     scheduled_activation: &mut Option<ClientLoopEvent>,
+    koala_runtime: Option<&koala::Runtime>,
 ) -> Result<(Vec<crossterm::event::MouseEvent>, bool), ClientError> {
     let mut replay_mouse = Vec::new();
     let mut repaint = false;
     for action in actions {
         match action {
+            shell::ClientShellAction::Koala(command) => {
+                let result = koala_runtime
+                    .ok_or_else(|| "koala adapter is disconnected.".to_string())
+                    .and_then(|runtime| runtime.send(command));
+                if let Err(message) = result {
+                    if let Some(shell) = shell.as_deref_mut() {
+                        shell.koala_notice(message);
+                    }
+                    repaint = true;
+                }
+            }
             shell::ClientShellAction::Endpoint {
                 endpoint_id,
                 boot_id,
@@ -268,6 +280,7 @@ pub(super) fn begin_endpoint_activation(
                 Some(shell),
                 &mut state.detached_process_children,
                 scheduled_activation,
+                state.koala_runtime.as_ref(),
             )?;
             if repaint {
                 if let Some(frame) = shell.compose(state.reported_size.0, state.reported_size.1) {
@@ -726,6 +739,7 @@ pub(super) fn finish_client_shell_input(
         state.shell.as_mut(),
         &mut state.detached_process_children,
         scheduled_activation,
+        state.koala_runtime.as_ref(),
     )?;
     let frame = if dispatch_repaint {
         state

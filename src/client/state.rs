@@ -2,6 +2,7 @@ use super::*;
 
 /// State tracking for the thin client.
 pub(super) struct ClientState {
+    pub(super) koala_runtime: Option<koala::Runtime>,
     /// Stateful semantic-frame encoder used when the server sends FrameData.
     pub(super) blit_encoder: render_ansi::BlitEncoder,
     pub(super) mouse_capture_active: bool,
@@ -94,6 +95,7 @@ impl ClientState {
             deferred_local_activation: None,
             draw_host_cursor: false,
             detached_process_children: Vec::new(),
+            koala_runtime: None,
             shell: Some(shell::ClientShellState::new(
                 shell::ClientShellConfig::from_config(&crate::config::Config::default()),
             )),

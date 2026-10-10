@@ -2,6 +2,8 @@ use super::*;
 
 /// Internal events for the client event loop.
 pub(super) enum ClientLoopEvent {
+    Koala(koala::KoalaView),
+    KoalaDisconnected,
     #[cfg(unix)]
     StdinInput(Vec<u8>),
     #[cfg(unix)]
