@@ -23,7 +23,7 @@ function taskRecord(server, task) {
   }
   // New activities from newer servers remain unknown; absence never means working.
   const activity = ACTIVITIES.has(task.activity) ? task.activity : 'unknown';
-  return Object.freeze({ key, id: task.id.toLowerCase(), title: task.title,
+  return Object.freeze({ key, id: task.id.toLowerCase(), title: task.title.replace(/[\x00-\x1f\x7f]/g, ' '),
     lifecycle: task.lifecycle, activity });
 }
 
