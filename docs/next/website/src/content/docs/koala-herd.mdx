@@ -1,0 +1,58 @@
+---
+title: Duy's Koala Herd
+description: Stream Koala tasks into Duy's Herdr fork with persistent local groups.
+---
+
+Duy's Koala Herd adds a Koala agent panel to this fork. Active tasks appear even before you open a terminal. Grouping and sound preferences stay on your computer. The Koala adapter lives in `adapters/koala`; it does not change Herdr's published endpoint protocol.
+
+## Setup on Linux
+
+Use Node 22 or newer, npm, and this branch's Herdr build prerequisites. Install FFmpeg (`ffplay`) if you want continuous sound. Sign in with the normal `koala login` command.
+
+```sh
+just build
+adapters/koala/install.sh
+duys-koala-herd
+```
+
+The installer uses `~/.local/share/duys-koala-herd` and creates `~/.local/bin/duys-koala-herd`. It leaves the existing `herdr` executable alone. The launcher opens the named session `duys-koala-herd`; set `HERDR_KOALA_SESSION` to choose another session. Existing Herdr configuration still applies.
+
+The Koala server must provide authenticated `GET /api/task-events`. The separate server branch is `superme-ai/koala:feat/herd-status-stream`. An old server produces a capability message; the client does not fall back to polling. Publishing that branch does not deploy it.
+
+For development, run `HERDR_KOALA_BINARY="$PWD/target/debug/herdr" adapters/koala/run.sh` after `cargo build`. Plain `herdr` keeps its normal panel.
+
+## Controls
+
+Click a task to open or focus its terminal. Existing Herdr `focus_agent` shortcuts address the displayed task numbers. Press **F8** to focus the Koala panel, then:
+
+| Key | Action |
+| --- | --- |
+| Up / Down | Select a task and scroll it into view |
+| Enter | Open or focus the selected task |
+| Space | Toggle sound tracking for that task |
+| g | Create a group; Enter saves, Esc cancels |
+| m | Move the selected task to the next group, including Ungrouped |
+| r | Rename the selected task's group |
+| c | Collapse or expand the selected task's group |
+| s | Toggle continuous sound |
+| Esc / F8 | Return keyboard input to the terminal |
+
+Click a group header to collapse or expand it. Group creation order determines display order. Opening a task requires a local Herdr workspace and never creates or resumes a remote Koala task. **Ctrl+]** detaches that terminal without stopping the remote task.
+
+Only active tasks appear. A completed turn that remains active can still appear as waiting for input. Shelved and closed tasks disappear while retaining their local preferences.
+
+## Streaming and sound
+
+Status uses one authenticated SSE stream. Terminal output, input, resize, replay, and exit use Koala's binary WebSocket protocol. Input is disabled until replay completes and during reconnect; disconnected keystrokes are discarded. Reopening an attached task focuses the existing pane.
+
+Waiting is shown only when the server has positive evidence. The current server adapter recognizes Claude/Codex waiting and confirmed stopped processes. Other activity remains **unknown**; it does not guess that a task is running. Disconnected rows remain visible as **stale** and stop contributing sound.
+
+Sound combines C3 through C10, one octave per tracked waiting task, capped at eight voices. Additional tasks do not raise pitch further. Master sound starts off. Existing standalone-client tracking selections import on first use without changing the old files.
+
+Preferences live in `$XDG_STATE_HOME/koala-herd/<server-hash>.json`, defaulting to `~/.local/state/koala-herd`. Writes are atomic and serialized across clients. Another client's edits appear when this client next changes a preference or restarts. If a process dies during a write, the error identifies its `.lock` directory; close Herd clients before removing that abandoned empty directory.
+
+Authentication reuses Koala's credential profiles. Temporary private local sockets pass refreshed credentials to attachments; secret tokens are not stored in group files or pane launch arguments. Restarting Herd closes that authentication bridge. An attachment that later needs to reconnect must be reopened from the new Herd client.
+
+## Validation limits
+
+Linux is the initial supported target. Windows attachment and packaging have not been validated. The implementation has contract, worker, native panel, and simulated terminal checks. Production deployment and a same-network comparison against the web are separate release checks; streaming support alone does not prove latency parity.

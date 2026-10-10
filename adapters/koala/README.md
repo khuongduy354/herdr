@@ -1,28 +1,31 @@
-# Duy’s Koala Herd adapter
+# Duy's Koala Herd
 
-This module isolates Koala status semantics from Herdr pane and workspace identity. It is the first implementation checkpoint; it does not yet enable the sidebar or attach a terminal.
+Koala-specific authentication, streamed status, local groups, sound, and terminal attachment for Duy's Herdr fork. The native client owns presentation and keyboard routing; this adapter owns Koala semantics. Task identity is normalized server URL plus full UUID, independent of tabs and panes.
 
-Run the contract tests with Node 22 or newer:
+See [setup and controls](../../docs/next/website/src/content/docs/koala-herd.mdx).
 
 ```sh
+npm ci --prefix adapters/koala --ignore-scripts
 node --test adapters/koala/*.test.mjs
+just test-one koala
+just build
+adapters/koala/install.sh
 ```
 
-## Status protocol version 1
+## Boundaries
 
-Each authenticated connection starts with a snapshot. A daemon epoch identifies one status history. Revisions are safe, nonnegative integers. Changes advance by exactly one revision; duplicates are ignored. A gap or invalid event makes the catalog stale and requires a new snapshot. Transport generations fence late callbacks from old connections.
+`catalog.mjs` validates version 1 snapshots and consecutive revision changes atomically. Epoch and connection generation fence old data. `events.mjs` consumes bounded SSE events with heartbeat timeout and no polling fallback. `worker.mjs` uses bounded newline-delimited JSON to communicate with the native client; network, filesystem, and player work stays off the render thread.
 
-```json
-{"version":1,"type":"snapshot","epoch":"boot-id","revision":0,"tasks":[{"id":"12345678-1234-1234-1234-123456789abc","title":"agent","lifecycle":"active","activity":"waiting"}]}
-{"version":1,"type":"change","epoch":"boot-id","revision":1,"upsert":[],"remove":["12345678-1234-1234-1234-123456789abc"]}
-```
+`groups.mjs` stores preferences by server and UUID, using atomic replacement and serialized read-modify-write. Missing tasks retain preferences. `auth.mjs` reads normal Koala profiles; `auth-bridge.mjs` exposes fresh headers only through a private temporary local socket restricted to that server. No credentials belong in shared layouts or group files.
 
-Lifecycle values are `active`, `shelved`, and `closed`. Activity values are `unknown`, `stopped`, `idle`, `working`, and `waiting`. Missing or newer activity values become `unknown`, never `working`. Each change is validated before any mutation. A task may occur only once in a batch, including removals.
+`attach.mjs` uses the existing Koala binary WebSocket contract. Input is gated by replay completion and discarded on disconnect. `herdr.mjs` uses public local API calls to create a new tab or focus a metadata-matched pane. It never creates or resumes a Koala task.
 
-The catalog returns active rows, including tasks without open panes. Disconnect retains rows with `stale: true` and suppresses the selected waiting count. A reconnect snapshot replaces the catalog. The UI owns persistent grouping and selection independently, keyed by normalized server URL plus full task UUID.
+`sound.mjs` adapts C-octave synthesis from [khuongduy354/koala-client](https://github.com/khuongduy354/koala-client). Only fresh selected waiting rows contribute voices; disconnect and worker shutdown stop playback.
 
-The protocol is a proposed client/server contract until the server capability ships. Existing Koala REST task lists must not be passed off as this stream. Terminal transport will use the existing Koala binary WebSocket protocol separately.
+The matching server implementation is [feat/herd-status-stream](https://github.com/superme-ai/koala/tree/feat/herd-status-stream). Deployment is required before a live client can subscribe.
 
-## Checkpoint validation
+## Checkpoint verification
 
-The initial contract has eight passing Node tests. Rust formatting passed. The full `just check` attempt stopped in Herdr's existing native build because Zig 0.16.0 was unavailable; it did not reach the Rust test suite. This checkpoint changes no Rust code or published Herdr codec.
+The implementation passes 34 adapter tests and 10 native Koala tests. An isolated native TUI check exercises rendered replay, raw keyboard input, resize, reconnect, attachment reuse, and exit cleanup against a simulated Koala server. Native formatting/clippy and maintenance checks pass.
+
+The full Herdr suite still has ten endpoint/sidebar failures that reproduce on the unchanged fork baseline. Windows cross-check requires an SDK not installed on the validation machine. Production deployment and a same-server web latency comparison remain release gates; no latency parity claim is made.
