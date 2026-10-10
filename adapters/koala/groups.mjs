@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rmdir, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { normalizeServer, taskKey } from './catalog.mjs';
 
 const empty = () => ({ version: 1, groups: [], tasks: {}, sound: false, defaultTracked: false });
@@ -27,7 +28,8 @@ function validate(state, server) {
   return state;
 }
 
-/** Commands are serialized by the worker; writes commit before memory changes. */
+/** Per-server locking protects separate workers; writes commit before memory changes.
+ * Other workers' changes appear in this instance after its next successful command. */
 export class KoalaGroups {
   #state;
   constructor(root, server, state) {
@@ -67,7 +69,30 @@ export class KoalaGroups {
       .map(row => ({ ...row, tracked: (this.#state.tasks[row.id]?.tracked ?? this.#state.defaultTracked) })) }));
   }
   async apply(command) {
-    const next = structuredClone(this.#state);
+    await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    const lock = `${this.path}.lock`;
+    const deadline = Date.now() + 3000;
+    for (;;) {
+      try { await mkdir(lock, { mode: 0o700 }); break; }
+      catch (error) {
+        if (error.code !== 'EEXIST') throw new Error('couldn’t lock saved koala groups.');
+        if (Date.now() >= deadline) {
+          throw new Error(`koala groups are busy. close other herd clients; if none are running, remove ${lock}.`);
+        }
+        await delay(25);
+      }
+    }
+    try {
+      let state;
+      try { state = validate(JSON.parse(await readFile(this.path, 'utf8')), this.server); }
+      catch (error) {
+        if (error.code !== 'ENOENT') throw new Error('couldn’t read saved koala groups. repair the state file before continuing.');
+        state = this.#state;
+      }
+      await this.#applyLocked(command, structuredClone(state));
+    } finally { await rmdir(lock); }
+  }
+  async #applyLocked(command, next) {
     const group = next.groups.find(value => value.id === command.group);
     const name = typeof command.name === 'string' ? command.name.trim() : '';
     if (['create', 'rename'].includes(command.type) && (!name || name.length > 80 || /[\x00-\x1f\x7f]/.test(name))) {
@@ -102,7 +127,6 @@ export class KoalaGroups {
       default: throw new Error('unknown koala group command.');
     }
     validate(next, this.server);
-    await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const temp = `${this.path}.${randomUUID()}.tmp`;
     try {
       const handle = await open(temp, 'wx', 0o600);

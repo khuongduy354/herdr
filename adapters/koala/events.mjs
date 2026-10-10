@@ -43,6 +43,7 @@ export async function subscribeStatus({ server, headers, catalog, signal, publis
       redirect: 'error', signal: AbortSignal.any([signal, transport.signal]),
     });
     if ([401, 403].includes(response.status)) throw new Error('koala sign-in refused. run koala login again.');
+    if (response.status !== 404 && !response.ok) throw new Error('couldn’t connect to koala status stream.');
     if (response.status === 404 || !response.headers.get('content-type')?.includes('text/event-stream')) {
       throw new Error('server needs the koala task-events capability.');
     }
