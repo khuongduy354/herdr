@@ -2112,6 +2112,29 @@ impl ClientShellState {
                     self.tab_press = Some(tab_press);
                     return;
                 }
+                if let Some(id) = self
+                    .hits
+                    .koala_tasks
+                    .iter()
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .map(|(_, id)| id.clone())
+                {
+                    self.open_koala(id, outcome);
+                    return;
+                }
+                if let Some(group) = self
+                    .hits
+                    .koala_groups
+                    .iter()
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .and_then(|(_, id)| id.clone())
+                {
+                    outcome.actions.push(ClientShellAction::Koala(
+                        serde_json::json!({"type":"collapse","group":group}),
+                    ));
+                    outcome.repaint = true;
+                    return;
+                }
                 if self.handle_endpoint_agent_click(point, outcome) {
                     return;
                 }

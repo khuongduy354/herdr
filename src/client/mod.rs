@@ -26,6 +26,7 @@ mod events;
 mod frame_output;
 mod handshake;
 mod input;
+mod koala;
 mod loop_config;
 mod notifications;
 mod shell;
@@ -391,6 +392,7 @@ async fn run_client_loop(
     let local_unavailable = initial.is_none();
 
     let mut state = ClientState {
+        koala_runtime: None,
         blit_encoder: render_ansi::BlitEncoder::new(),
         mouse_capture_active: config.mouse_capture_active,
         endpoint_mouse_capture_requested: false,
@@ -461,6 +463,23 @@ async fn run_client_loop(
 
     // Channel for events from the resize and server reader threads.
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<ClientLoopEvent>(256);
+    if state.shell.is_some() {
+        match koala::Runtime::start(event_tx.clone()) {
+            Ok(runtime) => {
+                if runtime.is_some() {
+                    if let Some(shell) = state.shell.as_mut() {
+                        shell.koala_notice("connecting.".into());
+                    }
+                }
+                state.koala_runtime = runtime;
+            }
+            Err(message) => {
+                if let Some(shell) = state.shell.as_mut() {
+                    shell.koala_notice(message);
+                }
+            }
+        }
+    }
     let (supervisor_tx, mut supervisor_rx) =
         tokio::sync::mpsc::channel::<endpoint::EndpointSupervisorEvent>(64);
     // Keep Windows console draining independent of server-frame backpressure.
@@ -755,6 +774,25 @@ async fn run_client_loop(
         }
 
         match event {
+            ClientLoopEvent::Koala(view) => {
+                if let Some(shell) = state.shell.as_mut() {
+                    shell.receive_koala(view);
+                    if let Some(frame) = shell.compose(state.reported_size.0, state.reported_size.1)
+                    {
+                        state.present_frame(frame);
+                    }
+                }
+            }
+            ClientLoopEvent::KoalaDisconnected => {
+                state.koala_runtime = None;
+                if let Some(shell) = state.shell.as_mut() {
+                    shell.koala_disconnected();
+                    if let Some(frame) = shell.compose(state.reported_size.0, state.reported_size.1)
+                    {
+                        state.present_frame(frame);
+                    }
+                }
+            }
             ClientLoopEvent::EndpointCatalog(reload) => pending_catalog = Some(reload),
             #[cfg(unix)]
             ClientLoopEvent::StdinInput(data) => {
@@ -1757,6 +1795,7 @@ async fn run_client_loop(
                             state.shell.as_mut(),
                             &mut state.detached_process_children,
                             &mut scheduled_activation,
+                            state.koala_runtime.as_ref(),
                         )?;
                         let repaint = repaint || dispatch_repaint;
                         if replay_mouse.is_empty() {

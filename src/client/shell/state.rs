@@ -83,6 +83,8 @@ pub(super) enum ClientMobileTarget {
 
 #[derive(Default)]
 pub(super) struct ShellHitMap {
+    pub(super) koala_tasks: Vec<(Rect, String)>,
+    pub(super) koala_groups: Vec<(Rect, Option<String>)>,
     pub(super) machines: Vec<MachineHit>,
     pub(super) workspaces: Vec<WorkspaceHit>,
     pub(super) workspace_body: Rect,
@@ -241,6 +243,7 @@ pub(super) struct WorkspaceHit {
 
 #[derive(Debug)]
 pub(crate) enum ClientShellAction {
+    Koala(serde_json::Value),
     Endpoint {
         endpoint_id: ClientEndpointId,
         boot_id: String,
@@ -844,6 +847,7 @@ pub(super) struct ClientCopyModeState {
 }
 
 pub(crate) struct ClientShellState {
+    pub(super) koala: Option<super::koala_panel::KoalaPanel>,
     pub(super) machine_diagnostics: super::machine_diagnostics::MachineDiagnostics,
     pub(super) config: ClientShellConfig,
     pub(super) snapshot: Option<Box<ClientShellSnapshot>>,
@@ -1035,6 +1039,7 @@ impl ClientShellState {
             collapsed_groups: preferences.collapsed_groups.into_iter().collect(),
             remote_collapsed_groups,
             workspace_scroll: 0,
+            koala: None,
             agent_scroll: 0,
             pending_agent_reveal: None,
             tab_scroll: 0,
