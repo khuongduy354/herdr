@@ -6,7 +6,8 @@ import { createAuth } from './auth.mjs';
 import { createAuthBridge } from './auth-bridge.mjs';
 import { KoalaCatalog } from './catalog.mjs';
 import { KoalaGroups } from './groups.mjs';
-import { subscribeStatus } from './events.mjs';
+import { subscribeStatus, StatusStreamUnavailable } from './events.mjs';
+import { pollStatus } from './polling.mjs';
 import { openTask } from './herdr.mjs';
 import { WaitingTone } from './sound.mjs';
 
@@ -17,6 +18,8 @@ let groups;
 let bridge;
 let message = 'connecting.';
 let soundError = null;
+let polling = false;
+const freshMessage = () => polling ? 'polling every 3s.' : 'live.';
 tone.onFailure = () => {
   soundError = 'couldn’t play sound. check ffplay and your audio device; toggle sound to retry.';
   publish(false);
@@ -57,7 +60,7 @@ input.on('line', line => {
       await groups.apply(command);
       if (command.type === 'sound') { soundError = null; tone.failure = null; }
     }
-    message = catalog.fresh ? 'live.' : 'reconnecting; status is stale.';
+    message = catalog.fresh ? freshMessage() : 'reconnecting; status is stale.';
     publish();
   }).catch(error => {
     message = error instanceof SyntaxError ? 'invalid adapter command.' : error.message;
@@ -75,11 +78,17 @@ try {
   let backoff = 250;
   while (!shutdown.signal.aborted) {
     try {
-      const headers = await auth.headers(server);
-      await subscribeStatus({ server, headers, catalog, signal: shutdown.signal,
-        publish: () => { message = catalog.fresh ? 'live.' : 'reconnecting; status is stale.'; publish(); } });
+      const options = { server, catalog, signal: shutdown.signal,
+        publish: () => { message = catalog.fresh ? freshMessage() : 'reconnecting; status is stale.'; publish(); } };
+      if (polling) await pollStatus({ ...options, getHeaders: () => auth.headers(server) });
+      else await subscribeStatus({ ...options, headers: await auth.headers(server) });
       backoff = 250;
     } catch (error) {
+      if (error instanceof StatusStreamUnavailable) {
+        polling = true;
+        backoff = 250;
+        continue;
+      }
       // Auth and protocol errors are already sanitized; fetch errors may contain credentials.
       message = /koala|server needs/.test(error.message) && !(error instanceof TypeError)
         ? error.message : 'couldn’t connect to koala. retrying.';

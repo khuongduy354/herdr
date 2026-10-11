@@ -17,7 +17,7 @@ duys-koala-herd
 
 The installer uses `~/.local/share/duys-koala-herd` and creates `~/.local/bin/duys-koala-herd`. It leaves the existing `herdr` executable alone. The launcher opens the named session `duys-koala-herd`; set `HERDR_KOALA_SESSION` to choose another session. Existing Herdr configuration still applies.
 
-The Koala server must provide authenticated `GET /api/task-events`. The separate server branch is `superme-ai/koala:feat/herd-status-stream`. An old server produces a capability message; the client does not fall back to polling. Publishing that branch does not deploy it.
+The client prefers authenticated `GET /api/task-events`, provided by the separate server branch `superme-ai/koala:feat/herd-status-stream`. If that endpoint is unavailable (404, 405, 501, or an HTML app shell), the client automatically polls `GET /api/tasks?status=active` every three seconds and displays **polling every 3s.** No server update is required for this fallback. Authentication errors, server failures, and malformed streams still surface as errors. Restart Herd after a server upgrade to try streaming again.
 
 For development, run `HERDR_KOALA_BINARY="$PWD/target/debug/herdr" adapters/koala/run.sh` after `cargo build`. Plain `herdr` keeps its normal panel.
 
@@ -43,9 +43,9 @@ Only active tasks appear. A completed turn that remains active can still appear 
 
 ## Streaming and sound
 
-Status uses one authenticated SSE stream. Terminal output, input, resize, replay, and exit use Koala's binary WebSocket protocol. Input is disabled until replay completes and during reconnect; disconnected keystrokes are discarded. Reopening an attached task focuses the existing pane.
+Status uses one authenticated SSE stream when available, or sequential polling on older servers. Failed polling requests retain stale rows and stop their sounds. Terminal output, input, resize, replay, and exit use Koala's binary WebSocket protocol in either mode. Input is disabled until replay completes and during reconnect; disconnected keystrokes are discarded. Reopening an attached task focuses the existing pane.
 
-Waiting is shown only when the server has positive evidence. The current server adapter recognizes Claude/Codex waiting and confirmed stopped processes. Other activity remains **unknown**; it does not guess that a task is running. Disconnected rows remain visible as **stale** and stop contributing sound.
+Waiting is shown only when the server has positive evidence. The streaming server adapter recognizes Claude/Codex waiting and confirmed stopped processes. Polling uses the legacy task list's `needsInput` signal only for a running PTY, and marks explicitly stopped PTYs as stopped. Older servers may only provide waiting evidence for Claude. Other activity remains **unknown**; output recency does not prove an agent is working or waiting. Disconnected rows remain visible as **stale** and stop contributing sound.
 
 Sound combines C3 through C10, one octave per tracked waiting task, capped at eight voices. Additional tasks do not raise pitch further. Master sound starts off. Existing standalone-client tracking selections import on first use without changing the old files.
 

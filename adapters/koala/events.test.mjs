@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { statusEvents, subscribeStatus } from './events.mjs';
+import { statusEvents, subscribeStatus, StatusStreamUnavailable } from './events.mjs';
 import { KoalaCatalog } from './catalog.mjs';
 
 async function* chunks(text, size = 1) {
@@ -34,12 +34,26 @@ test('stream updates arrive before response closes; close retains stale catalog'
   assert.equal(requests, 1);
   assert.equal(catalog.rows()[0].stale, true);
 });
-test('missing capability fails without switching to REST polling', async () => {
+test('missing capability is distinguished for the caller to select polling', async () => {
   const catalog = new KoalaCatalog('https://koala.example');
   let calls = 0;
   await assert.rejects(subscribeStatus({ server: catalog.server, headers: {}, catalog,
     signal: new AbortController().signal, publish() {},
-    fetchImpl: async () => { calls++; return new Response('not found', { status: 404 }); } }), /capability/);
+    fetchImpl: async () => { calls++; return new Response('not found', { status: 404 }); } }), StatusStreamUnavailable);
   assert.equal(calls, 1);
   assert.equal(catalog.fresh, false);
+});
+
+test('only unsupported endpoints or an HTML shell permit fallback, not auth or server failures', async () => {
+  for (const [status, type, fallback] of [
+    [404, 'text/plain', true], [405, 'text/plain', true], [501, 'text/plain', true],
+    [200, 'text/html; charset=utf-8', true], [401, 'text/html', false],
+    [403, 'text/html', false], [500, 'text/html', false], [200, 'application/json', false],
+  ]) {
+    const catalog = new KoalaCatalog('https://koala.example');
+    await assert.rejects(subscribeStatus({ server: catalog.server, headers: {}, catalog,
+      signal: new AbortController().signal, publish() {}, fetchImpl: async () =>
+        new Response('body', { status, headers: { 'content-type': type } }),
+    }), error => (error instanceof StatusStreamUnavailable) === fallback);
+  }
 });

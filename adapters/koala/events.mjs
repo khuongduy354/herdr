@@ -26,6 +26,10 @@ export async function* statusEvents(body, onBytes = () => {}) {
   if (buffer || data.length) throw new Error('incomplete koala status event.');
 }
 
+export class StatusStreamUnavailable extends Error {
+  constructor() { super('server needs the koala task-events capability.'); }
+}
+
 /** A single attempt. Caller owns reconnect/backoff and generation fencing. */
 export async function subscribeStatus({ server, headers, catalog, signal, publish, fetchImpl = fetch }) {
   const generation = catalog.connect();
@@ -43,11 +47,14 @@ export async function subscribeStatus({ server, headers, catalog, signal, publis
       redirect: 'error', signal: AbortSignal.any([signal, transport.signal]),
     });
     if ([401, 403].includes(response.status)) throw new Error('koala sign-in refused. run koala login again.');
-    if (response.status !== 404 && !response.ok) throw new Error('couldn’t connect to koala status stream.');
-    if (response.status === 404 || !response.headers.get('content-type')?.includes('text/event-stream')) {
-      throw new Error('server needs the koala task-events capability.');
+    const contentType = response.headers.get('content-type') ?? '';
+    if ([404, 405, 501].includes(response.status) || (response.ok && contentType.includes('text/html'))) {
+      await response.body?.cancel();
+      throw new StatusStreamUnavailable();
     }
-    if (!response.ok || !response.body) throw new Error('couldn’t connect to koala status stream.');
+    if (!response.ok || !response.body || !contentType.includes('text/event-stream')) {
+      throw new Error('couldn’t connect to koala status stream.');
+    }
     for await (const event of statusEvents(response.body, touch)) {
       if (catalog.apply(generation, event)) publish();
     }

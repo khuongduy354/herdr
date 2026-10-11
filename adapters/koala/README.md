@@ -14,7 +14,7 @@ adapters/koala/install.sh
 
 ## Boundaries
 
-`catalog.mjs` validates version 1 snapshots and consecutive revision changes atomically. Epoch and connection generation fence old data. `events.mjs` consumes bounded SSE events with heartbeat timeout and no polling fallback. `worker.mjs` uses bounded newline-delimited JSON to communicate with the native client; network, filesystem, and player work stays off the render thread.
+`catalog.mjs` validates version 1 snapshots and consecutive revision changes atomically. Epoch and connection generation fence old data. `events.mjs` consumes bounded SSE events with heartbeat timeout. When the streaming endpoint is unavailable (404/405/501 or the HTML app shell), `worker.mjs` falls back to `polling.mjs`, fetching the existing active-task list every three seconds. Authentication and stream protocol failures do not trigger fallback. Requests are sequential, bounded, cancellable, and refresh authentication each time; failures retain stale rows and silence waiting tones. Restart the client to probe streaming again after a server upgrade. `worker.mjs` uses bounded newline-delimited JSON to communicate with the native client; network, filesystem, and player work stays off the render thread.
 
 `groups.mjs` stores preferences by server and UUID, using atomic replacement and serialized read-modify-write. Missing tasks retain preferences. `auth.mjs` reads normal Koala profiles; `auth-bridge.mjs` exposes fresh headers only through a private temporary local socket restricted to that server. No credentials belong in shared layouts or group files.
 
@@ -22,7 +22,7 @@ adapters/koala/install.sh
 
 `sound.mjs` adapts C-octave synthesis from [khuongduy354/koala-client](https://github.com/khuongduy354/koala-client). Only fresh selected waiting rows contribute voices; disconnect and worker shutdown stop playback.
 
-The matching server implementation is [feat/herd-status-stream](https://github.com/superme-ai/koala/tree/feat/herd-status-stream). Deployment is required before a live client can subscribe.
+The matching streaming server implementation is [feat/herd-status-stream](https://github.com/superme-ai/koala/tree/feat/herd-status-stream). Older servers work through the polling fallback without deployment changes. Polling only reports waiting when a running PTY has positive `needsInput` evidence; absent activity evidence remains unknown.
 
 ## Checkpoint verification
 
