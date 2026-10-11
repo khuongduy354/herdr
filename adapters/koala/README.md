@@ -4,6 +4,8 @@ Koala-specific authentication, streamed status, local groups, sound, and termina
 
 See [setup and controls](../../docs/next/website/src/content/docs/koala-herd.mdx).
 
+The Linux installer records the current Node executable so desktop launchers use the same Node 22+ runtime even when their PATH omits nvm. Reinstall after removing or moving that runtime.
+
 ```sh
 npm ci --prefix adapters/koala --ignore-scripts
 node --test adapters/koala/*.test.mjs
